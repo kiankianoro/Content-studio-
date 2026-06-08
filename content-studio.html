@@ -424,39 +424,42 @@
     btn.innerHTML = '<div class="spinner"></div><span>در حال تولید محتوا...</span>';
     document.getElementById('resultCard').classList.add('hidden');
 
-    try {
-      // Use corsproxy.io to bypass CORS restriction
-      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent('https://api.anthropic.com/v1/messages');
+    const proxies = [
+      'https://corsproxy.io/?' + encodeURIComponent('https://api.anthropic.com/v1/messages'),
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://api.anthropic.com/v1/messages'),
+      'https://thingproxy.freeboard.io/fetch/https://api.anthropic.com/v1/messages',
+    ];
 
-      const res = await fetch(proxyUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: buildPrompt() }]
-        })
-      });
+    const reqBody = JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: buildPrompt() }]
+    });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error?.message || `خطای سرور: ${res.status}`);
-      }
+    const reqHeaders = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    };
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
+    let success = false;
+    for (const proxyUrl of proxies) {
+      try {
+        const res = await fetch(proxyUrl, { method: 'POST', headers: reqHeaders, body: reqBody });
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.error) { alert('خطای API: ' + data.error.message); break; }
+        resultContent = data.content?.map(b => b.text || '').join('\n') || 'خطا در دریافت پاسخ';
+        document.getElementById('resultText').textContent = resultContent;
+        document.getElementById('resultCard').classList.remove('hidden');
+        document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        success = true;
+        break;
+      } catch (e) { continue; }
+    }
 
-      resultContent = data.content?.map(b => b.text || '').join('\n') || 'خطا در دریافت پاسخ';
-      document.getElementById('resultText').textContent = resultContent;
-      document.getElementById('resultCard').classList.remove('hidden');
-      document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    } catch (e) {
-      alert('خطا: ' + (e.message || 'مشکل در اتصال. اینترنت را بررسی کنید'));
+    if (!success) {
+      alert('اتصال برقرار نشد.\n\nچک‌لیست:\n۱. VPN روشن باشه\n۲. سرور VPN رو عوض کن\n۳. دوباره امتحان کن');
     }
 
     btn.disabled = false;
